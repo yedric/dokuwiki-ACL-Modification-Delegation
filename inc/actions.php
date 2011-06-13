@@ -215,6 +215,7 @@ function act_clean($act){
  * Run permissionchecks
  *
  * @author Andreas Gohr <andi@splitbrain.org>
+ *    Modified by Ed Pate <dokuwikid@jaxcon.net> for ACLMOD v1.0
  */
 function act_permcheck($act){
   global $INFO;
@@ -242,7 +243,10 @@ function act_permcheck($act){
   }elseif($act == 'resendpwd'){
     $permneed = AUTH_NONE;
   }elseif($act == 'admin'){
-    if($INFO['ismanager']){
+// *Begin* ACLMOD v1.0 Changes
+    if($INFO['ismanager'] || $INFO['nsperm'] >= AUTH_ACLMOD || ( ( ($_REQUEST['id'] != '') && ( (auth_quicknsaclcheck($_REQUEST['id']) >= AUTH_ACLMOD ) || (auth_quicknsaclcheck($_REQUEST['id'].':') >= AUTH_ACLMOD ) ) ) || ( ( $_REQUEST['ns'] != '') && ( (auth_quicnsaclcheck($_REQUEST['ns']) >= AUTH_ACLMOD ) || (auth_quicknsaclcheck($_REQUEST['ns'].':') >= AUTH_ACLMOD ) ) ) )
+    ){
+// **End** ACLMOD v1.0 Changes
       // if the manager has the needed permissions for a certain admin
       // action is checked later
       $permneed = AUTH_READ;
