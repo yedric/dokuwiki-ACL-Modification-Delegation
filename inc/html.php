@@ -1373,14 +1373,28 @@ function html_admin(){
                     $menu['usermanager']['prompt'].'</a></div></li>');
         }
         unset($menu['usermanager']);
+// *Begin* ACLMOD v1.0 changes
+    }
 
+    if($INFO['nsperm'] >= AUTH_ACLMOD || $INFO['isadmin']){
+        if (! $INFO['isadmin']){
+            ptln('<ul class="admin_tasks">');
+        }
+// **End** ACLMOD v1.0 changes
         if($menu['acl']){
             ptln('  <li class="admin_acl"><div class="li">'.
                     '<a href="'.wl($ID, array('do' => 'admin','page' => 'acl')).'">'.
                     $menu['acl']['prompt'].'</a></div></li>');
         }
         unset($menu['acl']);
+// *Begin* ACLMOD v1.0 changes
+        if (! $INFO['isadmin']){
+            ptln('</ul>');
+        }
+    }
 
+    if($INFO['isadmin']){
+// **End** ACLMOD v1.0 changes
         if($menu['plugin']){
             ptln('  <li class="admin_plugin"><div class="li">'.
                     '<a href="'.wl($ID, array('do' => 'admin','page' => 'plugin')).'">'.
@@ -1398,19 +1412,25 @@ function html_admin(){
     ptln('</ul>');
 
     // Manager Tasks
-    ptln('<ul class="admin_tasks">');
+// *Begin* ACLMOD v1.0 changes
+    if($INFO['ismanager']){
+        ptln('<ul class="admin_tasks">');
 
-    if($menu['revert']){
-        ptln('  <li class="admin_revert"><div class="li">'.
-                '<a href="'.wl($ID, array('do' => 'admin','page' => 'revert')).'">'.
-                $menu['revert']['prompt'].'</a></div></li>');
+        if($menu['revert']){
+            ptln('  <li class="admin_revert"><div class="li">'.
+                    '<a href="'.wl($ID, array('do' => 'admin','page' => 'revert')).'">'.
+                    $menu['revert']['prompt'].'</a></div></li>');
+        }
     }
     unset($menu['revert']);
 
-    if($menu['popularity']){
-        ptln('  <li class="admin_popularity"><div class="li">'.
-                '<a href="'.wl($ID, array('do' => 'admin','page' => 'popularity')).'">'.
-                $menu['popularity']['prompt'].'</a></div></li>');
+    if($INFO['ismanager']){
+        if($menu['popularity']){
+            ptln('  <li class="admin_popularity"><div class="li">'.
+                    '<a href="'.wl($ID, array('do' => 'admin','page' => 'popularity')).'">'.
+                    $menu['popularity']['prompt'].'</a></div></li>');
+        }
+// **End** ACLMOD v1.0 changes
     }
     unset($menu['popularity']);
 
