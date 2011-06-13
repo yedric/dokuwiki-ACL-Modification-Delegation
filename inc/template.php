@@ -462,6 +462,7 @@ function tpl_getparent($id){
  *
  * @author Andreas Gohr <andi@splitbrain.org>
  * @author Matthias Grimm <matthiasgrimm@users.sourceforge.net>
+ *     Modified by Ed Pate <dokuwikid@jaxcon.net> for ACLMOD v1.0
  */
 function tpl_button($type,$return=false){
   global $ACT;
@@ -530,7 +531,8 @@ function tpl_button($type,$return=false){
       }
       break;
     case 'admin':
-      if($INFO['ismanager']){
+// Line modified for ACLMOD v1.0
+      if($INFO['nsperm'] >= AUTH_ACLMOD || $INFO['ismanager']){
         $out .= html_btn('admin',$ID,'',array('do' => 'admin'));
       }
       break;
@@ -605,6 +607,7 @@ function tpl_button($type,$return=false){
  *
  * @author Andreas Gohr <andi@splitbrain.org>
  * @author Matthias Grimm <matthiasgrimm@users.sourceforge.net>
+ *     Modified by Ed Pate <dokuwikid@jaxcon.net> for ACLMOD v1.0
  * @see    tpl_button
  */
 function tpl_actionlink($type,$pre='',$suf='',$inner='',$return=false){
@@ -697,7 +700,8 @@ function tpl_actionlink($type,$pre='',$suf='',$inner='',$return=false){
       }
       break;
     case 'admin':
-      if($INFO['ismanager']){
+// Line modified for ACLMOD v1.0
+      if($INFO['nsperm'] >= AUTH_ACLMOD || $INFO['ismanager']){
         $out .= tpl_link(wl($ID,'do=admin'),
                  $pre.(($inner)?$inner:$lang['btn_admin']).$suf,
                  'class="action admin" rel="nofollow"',1);
@@ -1258,6 +1262,7 @@ function tpl_mediaTree(){
  * Note: this will not use any pretty URLs
  *
  * @author Andreas Gohr <andi@splitbrain.org>
+ *    Modified by Ed Pate <dokuwikid@jaxcon.net> for ACLMOD v1.0
  */
 function tpl_actiondropdown($empty='',$button='&gt;'){
     global $ID;
@@ -1343,7 +1348,8 @@ function tpl_actiondropdown($empty='',$button='&gt;'){
             }
         }
 
-        if($INFO['ismanager']){
+if($INFO['ismanager']){
+        if($INFO['nsperm'] >= AUTH_ACLMOD || $INFO['ismanager']){
             echo '<option value="admin">'.$lang['btn_admin'].'</option>';
         }
     echo '</optgroup>';
