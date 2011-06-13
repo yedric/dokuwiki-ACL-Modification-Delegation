@@ -38,6 +38,7 @@ class DokuWiki_Admin_Plugin extends DokuWiki_Plugin {
         trigger_error('html() not implemented in '.get_class($this), E_USER_WARNING);
     }
 
+// function forAdminOnly modified for ACLMOD v1.0
     function forAdminOnly() {
         if ($INFO['nsperm'] >= AUTH_ACLMOD) {
             return false;
