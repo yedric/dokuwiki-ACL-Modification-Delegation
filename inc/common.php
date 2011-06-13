@@ -97,6 +97,7 @@ function formSecurityToken($print=true){
  * array.
  *
  * @author Andreas Gohr <andi@splitbrain.org>
+ *     Modified by Ed Pate <dokuwikid@jaxcon.net> for ACLMOD v1.0
  */
 function pageinfo(){
   global $ID;
@@ -117,6 +118,15 @@ function pageinfo(){
   if(isset($_SERVER['REMOTE_USER'])){
     $info['userinfo']     = $USERINFO;
     $info['perm']         = auth_quickaclcheck($ID);
+// *Begin* added lines for ACLMOD v1.0
+//
+// auth_quickaclcheck(getNS($ID)) doesn't seem to work properly...
+//   returns same as auth_quickaclcheck($ID), i.e., page perms
+//   rather than namespace perms
+//    $info['nsperm']       = auth_quickaclcheck(getNS($ID));
+//    $info['nsperm']       = auth_quickaclcheck(getNS($ID).':*');
+    $info['nsperm']       = auth_quicknsaclcheck($ID);
+// **End** added lines for ACLMOD v1.0
     $info['subscribed']   = is_subscribed($ID,$_SERVER['REMOTE_USER'],false);
     $info['subscribedns'] = is_subscribed($ID,$_SERVER['REMOTE_USER'],true);
     $info['client']       = $_SERVER['REMOTE_USER'];
