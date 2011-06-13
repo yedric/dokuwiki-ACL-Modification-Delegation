@@ -39,7 +39,11 @@ class DokuWiki_Admin_Plugin extends DokuWiki_Plugin {
     }
 
     function forAdminOnly() {
-        return true;
+        if ($INFO['nsperm'] >= AUTH_ACLMOD) {
+            return false;
+        } else {
+            return true;
+        }
     }
 
     function getTOC(){
