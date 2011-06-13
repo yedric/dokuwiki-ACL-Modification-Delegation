@@ -4,6 +4,7 @@
  *
  * @license    GPL 2 (http://www.gnu.org/licenses/gpl.html)
  * @author     Andreas Gohr <andi@splitbrain.org>
+ *     Modified by Ed Pate <dokuwikid@jaxcon.net> for ACLMOD v1.0
  */
 
 //fix for Opera XMLHttpRequests
@@ -21,7 +22,8 @@ session_write_close();
 
 $ID    = getID();
 
-if(!auth_isadmin) die('for admins only');
+// line changed for ACLMOD v1.0
+if ( !$INFO['isadmin'] && ( ($_REQUEST['id'] != '') && ( (auth_quicknsaclcheck($_REQUEST['id']) < AUTH_ACLMOD ) || (auth_quicknsaclcheck($_REQUEST['id'].':') <AUTH_ACLMOD ) ) ) && ( ( $_REQUEST['ns'] != '') && ( (auth_quicknsaclcheck($_REQUEST['ns']) < AUTH_ACLMOD ) || (auth_quicknsaclcheck($_REQUEST['ns'].':') <AUTH_ACLMOD ) ) ) ) die('for admins only--');
 require_once(DOKU_INC.'inc/pluginutils.php');
 require_once(DOKU_INC.'inc/html.php');
 $acl = plugin_load('admin','acl');
@@ -36,6 +38,8 @@ if($ajax == 'info'){
     require_once(DOKU_INC.'inc/search.php');
     global $conf;
     global $ID;
+// global declaration added for ACLMOD v1.0
+    global $INFO;
 
     $dir = $conf['datadir'];
     $ns  = $_REQUEST['ns'];
@@ -48,12 +52,16 @@ if($ajax == 'info'){
     $data = $acl->_get_tree($ns,$ns);
 
     foreach($data as $item){
-        $item['level'] = $lvl+1;
-        echo $acl->_html_li_acl($item);
-        echo '<div class="li">';
-        echo $acl->_html_list_acl($item);
-        echo '</div>';
-        echo '</li>';
+// *Begin* ACLMOD v1.0 changes
+        if ( ( $item['type'] == 'd' && ( auth_quicknsaclcheck($item['id'].':') >= AUTH_ACLMOD ) ) || ( $item['type'] == 'f' && ( auth_quicknsaclcheck($item['id']) >= AUTH_ACLMOD ) )  ) {
+            $item['level'] = $lvl+1;
+            echo $acl->_html_li_acl($item);
+            echo '<div class="li">';
+            echo $acl->_html_list_acl($item);
+            echo '</div>';
+            echo '</li>';
+        }
+// **End* ACLMOD v1.0 changes
     }
 }
 
