@@ -151,7 +151,8 @@ function html_topbtn(){
     global $lang;
 
     $ret  = '';
-    $ret  = '<a class="nolink" href="#dokuwiki__top"><input type="button" class="button" value="'.$lang['btn_top'].'" onclick="window.scrollTo(0, 0)" title="'.$lang['btn_top'].'" /></a>';
+    $ret  = '<a class="nolink" href="#dokuwiki__top"><input type="button" class="button" value="'.$lang['btn_top'].'" onclick="window.scrollTo(0, 0)" title="'.$lang['btn_top']
+.'" /></a>';
 
     return $ret;
 }
@@ -1365,6 +1366,7 @@ function html_debug(){
  *
  * @author Andreas Gohr <andi@splitbrain.org>
  * @author Håkan Sandell <hakan.sandell@home.se>
+ * @author Ed Pate <dokuwikid@jaxcon.net>
  */
 function html_admin(){
     global $ID;
@@ -1406,6 +1408,13 @@ function html_admin(){
                     $menu['usermanager']['prompt'].'</a></div></li>');
         }
         unset($menu['usermanager']);
+// *Begin* ACLMOD v1.1 changes
+    }
+
+    if($INFO['nsperm'] >= AUTH_ACLMOD || $INFO['isadmin']){
+        if (! $INFO['isadmin']){
+            ptln('<ul class="admin_tasks">');
+        }
 
         if($menu['acl']){
             ptln('  <li class="admin_acl"><div class="li">'.
@@ -1413,7 +1422,13 @@ function html_admin(){
                     $menu['acl']['prompt'].'</a></div></li>');
         }
         unset($menu['acl']);
+        if (! $INFO['isadmin']){
+            ptln('</ul>');
+        }
+    }
 
+    if($INFO['isadmin'])
+// **End** ACLMOD v1.1 changes
         if($menu['plugin']){
             ptln('  <li class="admin_plugin"><div class="li">'.
                     '<a href="'.wl($ID, array('do' => 'admin','page' => 'plugin')).'">'.
@@ -1430,22 +1445,27 @@ function html_admin(){
     }
     ptln('</ul>');
 
+// *Begin* ACLMOD v1.1 changes
     // Manager Tasks
-    ptln('<ul class="admin_tasks">');
-
-    if($menu['revert']){
-        ptln('  <li class="admin_revert"><div class="li">'.
-                '<a href="'.wl($ID, array('do' => 'admin','page' => 'revert')).'">'.
-                $menu['revert']['prompt'].'</a></div></li>');
+    if($INFO['ismanager']){
+        ptln('<ul class="admin_tasks">');
+        if($menu['revert']){
+            ptln('  <li class="admin_revert"><div class="li">'.
+                    '<a href="'.wl($ID, array('do' => 'admin','page' => 'revert')).'">'.
+                    $menu['revert']['prompt'].'</a></div></li>');
+        }
     }
     unset($menu['revert']);
 
-    if($menu['popularity']){
-        ptln('  <li class="admin_popularity"><div class="li">'.
-                '<a href="'.wl($ID, array('do' => 'admin','page' => 'popularity')).'">'.
-                $menu['popularity']['prompt'].'</a></div></li>');
+    if($INFO['ismanager']){
+        if($menu['popularity']){
+            ptln('  <li class="admin_popularity"><div class="li">'.
+                    '<a href="'.wl($ID, array('do' => 'admin','page' => 'popularity')).'">'.
+                    $menu['popularity']['prompt'].'</a></div></li>');
+        }
     }
     unset($menu['popularity']);
+// **End** ACLMOD v1.1 changes
 
     // print DokuWiki version:
     ptln('</ul>');
@@ -1642,4 +1662,5 @@ function html_flashobject($swf,$width,$height,$params=null,$flashvars=null,$atts
 
     return $out;
 }
+
 
