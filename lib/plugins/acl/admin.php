@@ -6,6 +6,7 @@
  * @author     Andreas Gohr <andi@splitbrain.org>
  * @author     Anika Henke <anika@selfthinker.org> (concepts)
  * @author     Frank Schubert <frank@schokilade.de> (old version)
+ * @author     Ed Pate <dokuwikid@jaxcon.net> (Namespace ACL Delegation Mod)
  */
 // must be run within Dokuwiki
 if(!defined('DOKU_INC')) die();
@@ -35,11 +36,11 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
      */
     function getInfo(){
         return array(
-            'author' => 'Andreas Gohr',
-            'email'  => 'andi@splitbrain.org',
-            'date'   => '2010-01-17',
-            'name'   => 'ACL Manager',
-            'desc'   => 'Manage Page Access Control Lists',
+            'author' => 'Andreas Gohr/Ed Pate',
+            'email'  => 'andi@splitbrain.org/dokuwikid@jaxcon.net',
+            'date'   => '2011-06-15',
+            'name'   => 'ACL Manager + Namespace ACL Delegation',
+            'desc'   => 'Manage Page Access Control Lists+ Namespace ACL Delegation',
             'url'    => 'http://dokuwiki.org/plugin:acl',
         );
     }
@@ -58,6 +59,51 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
         return 1;
     }
 
+// Function (local forAdminOnly specific to ACL plugin) added for ACLMOD v1.1
+
+    /**
+     * return false if perms on current or parent namespace(s) are
+     * AUTH_ACLMOD or greater, otherwise, return true
+     *
+     * *** NOTE ***
+     * Because $ID gets reset to 'Start' after certain ACL admin
+     * actions, we have to wing it and use a workaround.
+     * ACL Modification Delegation REQUIRES breadcrumbs to work
+     * correctly.  If breadcrumbs are disabled, "Access Control List
+     * Management" page may not redraw after submitting ACL
+     * changes via the JavaScript interface at the top of that
+     * page.  User will have to go back to 'normal' page,
+     * select admin, then ACL Management to get back to page.
+     */
+    function forAdminOnly() {
+        global $ID;
+        global $INFO;
+
+        if ( $ID != 'start' ) {
+            $fAO_ID = $ID;
+        } else {
+            /*
+             * breadcrumbs tell us the last 'normal' page accessed,
+             * which should be used to determine if non-admin user
+             * has ACL_MOD perms.
+             *
+             * ** FIXME ** This method works, but requires stepping
+             * through the entire array.  Better method?
+             */
+            $crumbs = breadcrumbs(); //get crumb trace
+            foreach ($crumbs as $id => $name){
+                $fAO_ID=$id;
+            }
+        }
+
+        if ( auth_quicknsaclcheck($fAO_ID.':') >= AUTH_ACLMOD ) {
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+
     /**
      * handle user request
      *
@@ -69,6 +115,8 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
         global $AUTH_ACL;
         global $ID;
         global $auth;
+// line added for ACLMOD v1.1
+        global $INFO;
         global $config_cascade;
 
         // fresh 1:1 copy without replacements
@@ -132,26 +180,29 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
                 $this->_acl_del($scope, $this->who);
             }elseif(isset($_REQUEST['cmd']['update'])){
                 // handle update of the whole file
-                foreach((array) $_REQUEST['del'] as $where => $names){
-                    // remove all rules marked for deletion
-                    foreach($names as $who)
-                        unset($_REQUEST['acl'][$where][$who]);
-                }
-                // prepare lines
-                $lines = array();
-                // keep header
-                foreach($AUTH_ACL as $line){
-                    if($line{0} == '#'){
-                        $lines[] = $line;
-                    }else{
-                        break;
+// *Begin* ACLMOD v1.1 changes
+                // Handle the elegant way if user is admin
+                if ( $INFO['isadmin'] ) {
+                    foreach((array) $_REQUEST['del'] as $where => $names){
+                        // remove all rules marked for deletion
+                        foreach($names as $who)
+                            unset($_REQUEST['acl'][$where][$who]);
                     }
-                }
-                // re-add all rules
-                foreach((array) $_REQUEST['acl'] as $where => $opt){
-                    foreach($opt as $who => $perm){
-                        if ($who[0]=='@') {
-                            if ($who!='@ALL') {
+                    // prepare lines
+                    $lines = array();
+                    // keep header
+                    foreach($AUTH_ACL as $line){
+                        if($line{0} == '#'){
+                            $lines[] = $line;
+                        }else{
+                            break;
+                        }
+                    }
+                    // re-add all rules
+                    foreach((array) $_REQUEST['acl'] as $where => $opt){
+                        foreach($opt as $who => $perm){
+                            if ($who[0]=='@') {
+                                if ($who!='@ALL') {
                                 $who = '@'.ltrim($auth->cleanGroup($who),'@');
                             }
                         } elseif ($who != '%USER%'){ #keep wildcard as is
@@ -163,6 +214,30 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
                 }
                 // save it
                 io_saveFile($config_cascade['acl']['default'], join('',$lines));
+                } else {
+                    /**
+                     *  Handle it the messy way if user !admin
+                     *
+                     *  Elegant manner is to completely rebuild
+                     *  ACL list file.  Since !admin user does
+                     *  not have all ACL's in memory, need to use
+                     *  delete/add method on all ACL's in memory.
+                    **/
+                    foreach((array) $_REQUEST['acl'] as $where => $opt){
+                        // Process all remaining lines in memory
+                        foreach($opt as $who => $perm){
+                            $this->_acl_del($where, $who);
+                            $this->_acl_add($where, $who, $perm);
+                        }
+                    }
+                    foreach((array) $_REQUEST['del'] as $where => $names){
+                        // remove all rules marked for deletion
+                        foreach($names as $who) {
+                            $this->_acl_del($where, $who);
+                        }
+                    }
+                }
+// **End** ACLMOD v1.1 changes
             }
 
             // reload ACL config
@@ -234,11 +309,17 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
      * Display a tree menu to select a page or namespace
      *
      * @author Andreas Gohr <andi@splitbrain.org>
+     * @author Ed Pate <dokuwikid@jaxcon.net>
      */
     function _html_explorer(){
         global $conf;
         global $ID;
         global $lang;
+// four lines added for ACLMOD v1.1
+        global $AUTH_ACL;
+        global $auth;
+        global $INFO;
+        global $USERINFO;
 
         $dir = $conf['datadir'];
         $ns  = $this->ns;
@@ -250,11 +331,83 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
         }
         $ns  = utf8_encodeFN(str_replace(':','/',$ns));
 
+// comments added for ACLMOD v1.1
+        /**
+         * Go ahead and traverse the entire array.
+         * If user is NOT admin,
+         *   parse array and remove entries
+         *     for which the user does not have AUTH_ACLMOD
+        **/
         $data = $this->_get_tree($ns);
 
-        // wrap a list with the root level around the other namespaces
-        $item = array( 'level' => 0, 'id' => '*', 'type' => 'd',
-                   'open' =>'true', 'label' => '['.$lang['mediaroot'].']');
+// *Begin* ACLMOD v1.1 changes
+        if (! $INFO['isadmin']) {
+            if (!isset($data)) {
+                $data = array();
+            }
+            if (!isset($datakeys)) {
+                $datakeys = array();
+            }
+            if (!isset($nsdata)) {
+                $nsdata = array();
+            }
+            if (!isset($nsdatatmp)) {
+                $nsdatatmp = array();
+            }
+            $datakeys=array_keys($data);
+            $count = count($datakeys);
+
+            if ($count>0) {
+                /**
+                 * Traverse the tree once to build list of namespaces to keep
+                 * Since not all ACL's are in array, need to build table of
+                 * namespaces that user has AUTH_ACLMOD and all of their parent
+                 * namespaces, for display purposes.
+                **/
+                for($i=0; $i<$count; $i++) {
+                    if ( $data[$datakeys[$i]]['type'] == 'd' && ( auth_quickaclcheck($data[$datakeys[$i]]['id'].':*') >= AUTH_ACLMOD ) ) {
+                        $nsdatatmp=explode(':',$data[$datakeys[$i]]['id']);
+                        $countns=count($nsdatatmp);
+                        if ( $countns > 0 ) {
+                            $nsbuildtmp=$nsdatatmp[0];
+                            $nsdata[]=$nsbuildtmp;
+                            for ($j=1;$j<$countns;$j++) {
+                                $nsbuildtmp.=':'.$nsdatatmp[$j];
+                                $nsdata[]=$nsbuildtmp;
+                            }
+                        }
+                        unset($nsbuildtmp);
+                    }
+                }
+                $nsdata=array_unique($nsdata);
+
+                // Traverse to determine which pages/files should be kept
+                // ALL namespaces in $nsdata will be kept
+                for($i=0; $i<$count; $i++) {
+                    if ( $data[$datakeys[$i]]['type'] == 'f' ) {
+                        if ( auth_quicknsaclcheck($data[$datakeys[$i]]['id']) < AUTH_ACLMOD ) {
+                            unset($data[$datakeys[$i]]);
+                        }
+                    } else {
+                        if ( $data[$datakeys[$i]]['type'] == 'd' && ! in_array($data[$datakeys[$i]]['id'],$nsdata) ) {
+                            unset($data[$datakeys[$i]]);
+                        }
+                    }
+                }
+
+            }
+        }
+
+
+        /**
+         * If user is ADMIN, go ahead wrap root level,
+         *   if user is NOT admin, wrap root level ONLY if
+         *       user has AUTH_ACLMOD for root namespace
+         **/
+         // wrap a list with the root level around the other namespaces
+             $item = array( 'level' => 0, 'id' => '*', 'type' => 'd',
+                        'open' =>'true', 'label' => '['.$lang['mediaroot'].']');
+// **End** ACLMOD v1.1 changes
 
         echo '<ul class="acltree">';
         echo $this->_html_li_acl($item);
@@ -346,6 +499,10 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
         global $conf;
         global $ID;
 
+// two lines added for ACLMOD v1.1
+        // wrap a list with the root level around the other namespaces
+
+
         echo '<form action="'.wl().'" method="post" accept-charset="utf-8"><div class="no">'.NL;
 
         echo '<div id="acl__user">';
@@ -372,14 +529,24 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
      */
     function _html_info(){
         global $ID;
+// two lines added for ACLMOD v1.1
+        global $INFO;
+        global $auth;
 
         if($this->who){
             $current = $this->_get_exact_perm();
 
+// *Begin* ACLMOD v1.1 changes
             // explain current permissions
-            $this->_html_explain($current);
-            // load editor
-            $this->_html_acleditor($current);
+            $inh_aclmod_perms = $this->_html_explain($current);
+            if ( $current == AUTH_ACLMOD && !$INFO['isadmin']) {
+                // Only admin users can change ACL_MOD permissions
+                printf($this->getLang('p_denied'),hsc($this->ns));
+            } else {
+                // load editor
+                $this->_html_acleditor($current);
+            }
+// **End** ACLMOD v1.1 changes
         }else{
             echo '<p>';
             if($this->ns){
@@ -425,6 +592,7 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
      * Explain the currently set permissions in plain english/$lang
      *
      * @author Andreas Gohr <andi@splitbrain.org>
+     * @author Ed Pate <dokuwikid@jaxcon.net>
      */
     function _html_explain($current){
         global $ID;
@@ -465,6 +633,8 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
         $names = array();
         if($perm){
             if($ns){
+// line added for ACLMOD v1.1
+                if($perm >= AUTH_ACLMOD) $names[] = $this->getLang('acl_perm64');
                 if($perm >= AUTH_DELETE) $names[] = $this->getLang('acl_perm16');
                 if($perm >= AUTH_UPLOAD) $names[] = $this->getLang('acl_perm8');
                 if($perm >= AUTH_CREATE) $names[] = $this->getLang('acl_perm4');
@@ -602,6 +772,7 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
      * Display all currently set permissions in a table
      *
      * @author Andreas Gohr <andi@splitbrain.org>
+     * @author Ed Pate <dokuwikid@jaxcon.net>
      */
     function _html_table(){
         global $lang;
@@ -626,33 +797,47 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
         echo '</tr>';
         foreach($this->acl as $where => $set){
             foreach($set as $who => $perm){
-                echo '<tr>';
-                echo '<td>';
-                if(substr($where,-1) == '*'){
-                    echo '<span class="aclns">'.hsc($where).'</span>';
-                    $ispage = false;
-                }else{
-                    echo '<span class="aclpage">'.hsc($where).'</span>';
-                    $ispage = true;
+// *Begin* ACLMOD v1.1 changes
+                /**
+                 * Line only gets displayed if at least one of the following is true:
+                 * - User is Admin,
+                 * - User is non-Admin, Entry is for a namespace User has ACLmod on it
+                 *   or parent, unless line is for ACLmod perm,
+                 * - User is non-Admin, Entry is for page and User has ACLmod on
+                 *   namespace page is in.
+                 **/
+                if ( $INFO['isadmin'] || ( ( $perm != AUTH_ACLMOD ) && ( (auth_quicknsaclcheck($where) >= AUTH_ACLMOD) || (auth_quicknsaclcheck($where).':') >= AUTH_ACLMOD))) 
+{
+                    echo '<tr>';
+                    echo '<td>';
+                    if(substr($where,-1) == '*'){
+                        echo '<span class="aclns">'.hsc($where).'</span>';
+                        $ispage = false;
+                    }else{
+                        echo '<span class="aclpage">'.hsc($where).'</span>';
+                        $ispage = true;
+                    }
+                    echo '</td>';
+
+                    echo '<td>';
+                    if($who{0} == '@'){
+                        echo '<span class="aclgroup">'.hsc($who).'</span>';
+                    }else{
+                        echo '<span class="acluser">'.hsc($who).'</span>';
+                    }
+                    echo '</td>';
+
+                    echo '<td>';
+                    echo $this->_html_checkboxes($perm,$ispage,'acl['.$where.']['.$who.']');
+                    echo '</td>';
+
+                    echo '<td align="center">';
+                    echo '<input type="checkbox" name="del['.hsc($where).'][]" value="'.hsc($who).'" ';
+                    echo '/>';
+                    echo '</td>';
+                    echo '</tr>';
                 }
-                echo '</td>';
-
-                echo '<td>';
-                if($who{0} == '@'){
-                    echo '<span class="aclgroup">'.hsc($who).'</span>';
-                }else{
-                    echo '<span class="acluser">'.hsc($who).'</span>';
-                }
-                echo '</td>';
-
-                echo '<td>';
-                echo $this->_html_checkboxes($perm,$ispage,'acl['.$where.']['.$who.']');
-                echo '</td>';
-
-                echo '<td align="center">';
-                echo '<input type="checkbox" name="del['.hsc($where).'][]" value="'.hsc($who).'" />';
-                echo '</td>';
-                echo '</tr>';
+// **End** ACLMOD v1.1 changes
             }
         }
 
@@ -737,16 +922,20 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
      *
      * @author  Frank Schubert <frank@schokilade.de>
      * @author  Andreas Gohr <andi@splitbrain.org>
+     * @author  Ed Pate <dokuwikid@jaxcon.net>
      */
     function _html_checkboxes($setperm,$ispage,$name){
         global $lang;
+// line added for ACLMOD v1.1
+        global $INFO;
 
         static $label = 0; //number labels
         $ret = '';
 
         if($ispage && $setperm > AUTH_EDIT) $perm = AUTH_EDIT;
 
-        foreach(array(AUTH_NONE,AUTH_READ,AUTH_EDIT,AUTH_CREATE,AUTH_UPLOAD,AUTH_DELETE) as $perm){
+// line changed for ACLMOD v1.1
+        foreach(array(AUTH_NONE,AUTH_READ,AUTH_EDIT,AUTH_CREATE,AUTH_UPLOAD,AUTH_DELETE,AUTH_ACLMOD) as $perm){
             $label += 1;
 
             //general checkbox attributes
@@ -756,7 +945,8 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
                            'value' => $perm );
             //dynamic attributes
             if(!is_null($setperm) && $setperm == $perm) $atts['checked']  = 'checked';
-            if($ispage && $perm > AUTH_EDIT){
+// line changed for ACLMOD v1.1
+            if(($ispage && $perm > AUTH_EDIT) || (!$INFO['isadmin'] && (!$ispage && $setperm == AUTH_ACLMOD) ) ){
                 $atts['disabled'] = 'disabled';
                 $class = ' class="disabled"';
             }else{
@@ -836,3 +1026,4 @@ class admin_plugin_acl extends DokuWiki_Admin_Plugin {
         return $inlist;
     }
 }
+
