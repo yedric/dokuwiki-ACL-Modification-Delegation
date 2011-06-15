@@ -594,7 +594,8 @@ function tpl_get_action($type) {
             }
             break;
         case 'admin':
-            if(!$INFO['ismanager']){
+// line changed for ACLMOD v1.1
+            if($INFO['nsperm'] >= AUTH_ACLMOD || $INFO['ismanager']){
                 return false;
             }
             break;
@@ -1360,4 +1361,5 @@ function tpl_flush(){
 
 
 //Setup VIM: ex: et ts=4 enc=utf-8 :
+
 
