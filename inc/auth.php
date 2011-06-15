@@ -18,6 +18,8 @@ define('AUTH_EDIT',2);
 define('AUTH_CREATE',4);
 define('AUTH_UPLOAD',8);
 define('AUTH_DELETE',16);
+// line added for ACLMOD v1.1
+define('AUTH_ACLMOD',64);
 define('AUTH_ADMIN',255);
 
 /**
@@ -447,7 +449,7 @@ function auth_isadmin($user=null,$groups=null){
 }
 
 /**
- * Convinience function for auth_aclcheck()
+ * Convenience function for auth_aclcheck()
  *
  * This checks the permissions for the current user
  *
@@ -523,7 +525,7 @@ function auth_aclcheck($id,$user,$groups){
         foreach($matches as $match){
             $match = preg_replace('/#.*$/','',$match); //ignore comments
             $acl   = preg_split('/\s+/',$match);
-            if($acl[2] > AUTH_DELETE) $acl[2] = AUTH_DELETE; //no admins in the ACL!
+            if($acl[2] > AUTH_ACLMOD) $acl[2] = AUTH_ACLMOD; //no admins in the ACL!
             if($acl[2] > $perm){
                 $perm = $acl[2];
             }
@@ -547,7 +549,122 @@ function auth_aclcheck($id,$user,$groups){
             foreach($matches as $match){
                 $match = preg_replace('/#.*$/','',$match); //ignore comments
                 $acl   = preg_split('/\s+/',$match);
-                if($acl[2] > AUTH_DELETE) $acl[2] = AUTH_DELETE; //no admins in the ACL!
+// Line modified for ACLMOD v1.1
+                if($acl[2] > AUTH_ACLMOD) $acl[2] = AUTH_ACLMOD; //no admins in the ACL!
+                if($acl[2] > $perm){
+                    $perm = $acl[2];
+                }
+            }
+            //we had a match - return it
+            return $perm;
+        }
+
+        //get next higher namespace
+        $ns   = getNS($ns);
+
+        if($path != '*'){
+            $path = $ns.':*';
+            if($path == ':*') $path = '*';
+        }else{
+            //we did this already
+            //looks like there is something wrong with the ACL
+            //break here
+            msg('No ACL setup yet! Denying access to everyone.');
+            return AUTH_NONE;
+        }
+    }while(1); //this should never loop endless
+
+    //still here? return no permissions
+    return AUTH_NONE;
+}
+
+/**
+ * Convenience function for auth_nsaclcheck()
+ *
+ * This checks the permissions for the current user
+ *
+ * @author  Andreas Gohr <andi@splitbrain.org>
+ * @author  Ed Pate <dokuwikid@jaxcon.net>
+ *
+ * @param  string  $id  page ID (needs to be resolved and cleaned)
+ * @return int          permission level
+ */
+function auth_quicknsaclcheck($id){
+    global $conf;
+    global $USERINFO;
+    # if no ACL is used always return upload rights
+    if(!$conf['useacl']) return AUTH_UPLOAD;
+    return auth_nsaclcheck($id,$_SERVER['REMOTE_USER'],$USERINFO['grps']);
+}
+
+/**
+ * Returns the maximum rights a user has for
+ * the given namespace
+ *
+ * @author  Andreas Gohr <andi@splitbrain.org>
+ * @author  Ed Pate <dokuwikid@jaxcon.net>
+ *
+ * @param  string  $id     page ID (needs to be resolved and cleaned)
+ * @param  string  $user   Username
+ * @param  array   $groups Array of groups the user is in
+ * @return int             permission level
+ */
+function auth_nsaclcheck($id,$user,$groups){
+    global $conf;
+    global $AUTH_ACL;
+    global $auth;
+
+    // if no ACL is used always return upload rights
+    if(!$conf['useacl']) return AUTH_UPLOAD;
+    if (!$auth) return AUTH_NONE;
+
+    //make sure groups is an array
+    if(!is_array($groups)) $groups = array();
+
+    //if user is superuser or in superusergroup return 255 (acl_admin)
+    if(auth_isadmin($user,$groups)) { return AUTH_ADMIN; }
+
+    $ci = '';
+    if(!$auth->isCaseSensitive()) $ci = 'ui';
+
+    $user = $auth->cleanUser($user);
+    $groups = array_map(array($auth,'cleanGroup'),(array)$groups);
+    $user = auth_nameencode($user);
+
+    //prepend groups with @ and nameencode
+    $cnt = count($groups);
+    for($i=0; $i<$cnt; $i++){
+        $groups[$i] = '@'.auth_nameencode($groups[$i]);
+    }
+
+    $ns    = getNS($id);
+    $perm  = -1;
+
+    if($user || count($groups)){
+        //add ALL group
+        $groups[] = '@ALL';
+        //add User
+        if($user) $groups[] = $user;
+        //build regexp
+        $regexp   = join('|',$groups);
+    }else{
+        $regexp = '@ALL';
+    }
+
+    //still here? do the namespace checks
+    if($ns){
+        $path = $ns.':*';
+    }else{
+        $path = '*'; //root document
+    }
+
+    do{
+        $matches = preg_grep('/^'.preg_quote($path,'/').'\s+('.$regexp.')\s+/'.$ci,$AUTH_ACL);
+        if(count($matches)){
+            foreach($matches as $match){
+                $match = preg_replace('/#.*$/','',$match); //ignore comments
+                $acl   = preg_split('/\s+/',$match);
+                if($acl[2] > AUTH_ACLMOD) $acl[2] = AUTH_ACLMOD; //no admins in the ACL!
                 if($acl[2] > $perm){
                     $perm = $acl[2];
                 }
@@ -1118,3 +1235,4 @@ function auth_getCookie(){
 }
 
 //Setup VIM: ex: et ts=2 enc=utf-8 :
+
