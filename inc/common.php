@@ -91,6 +91,7 @@ function formSecurityToken($print=true){
  * array.
  *
  * @author Andreas Gohr <andi@splitbrain.org>
+ * @author Ed Pate <dokuwikid@jaxcon.net>
  */
 function pageinfo(){
     global $ID;
@@ -110,6 +111,14 @@ function pageinfo(){
     if(isset($_SERVER['REMOTE_USER'])){
         $info['userinfo']     = $USERINFO;
         $info['perm']         = auth_quickaclcheck($ID);
+        $info['perm']         = auth_quickaclcheck($ID);
+// *Begin* ACLMOD v1.1 changes
+//
+// auth_quickaclcheck(getNS($ID)) doesn't seem to work properly...
+//   returns same as auth_quickaclcheck($ID), i.e., page perms
+//   rather than namespace perms
+        $info['nsperm']       = auth_quicknsaclcheck($ID);
+// **End** ACLMOD v1.1 changes
         $info['subscribed']   = get_info_subscribed();
         $info['client']       = $_SERVER['REMOTE_USER'];
 
@@ -661,7 +670,9 @@ function clientismobile(){
 
     if(!isset($_SERVER['HTTP_USER_AGENT'])) return false;
 
-    $uamatches = 'midp|j2me|avantg|docomo|novarra|palmos|palmsource|240x320|opwv|chtml|pda|windows ce|mmp\/|blackberry|mib\/|symbian|wireless|nokia|hand|mobi|phone|cdm|up\.b|audio|SIE\-|SEC\-|samsung|HTC|mot\-|mitsu|sagem|sony|alcatel|lg|erics|vx|NEC|philips|mmm|xx|panasonic|sharp|wap|sch|rover|pocket|benq|java|pt|pg|vox|amoi|bird|compal|kg|voda|sany|kdd|dbt|sendo|sgh|gradi|jb|\d\d\di|moto';
+    $uamatches = 'midp|j2me|avantg|docomo|novarra|palmos|palmsource|240x320|opwv|chtml|pda|windows ce|mmp\/|blackberry|mib\/|symbian|wireless|nokia|hand|mobi|phone|cdm|up\.b|a
+udio|SIE\-|SEC\-|samsung|HTC|mot\-|mitsu|sagem|sony|alcatel|lg|erics|vx|NEC|philips|mmm|xx|panasonic|sharp|wap|sch|rover|pocket|benq|java|pt|pg|vox|amoi|bird|compal|kg|voda|sa
+ny|kdd|dbt|sendo|sgh|gradi|jb|\d\d\di|moto';
 
     if(preg_match("/$uamatches/i",$_SERVER['HTTP_USER_AGENT'])) return true;
 
@@ -1524,3 +1535,4 @@ function valid_input_set($param, $valid_values, $array, $exc = '') {
 }
 
 //Setup VIM: ex: et ts=2 enc=utf-8 :
+
