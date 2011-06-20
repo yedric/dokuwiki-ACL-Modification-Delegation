@@ -1427,7 +1427,7 @@ function html_admin(){
         }
     }
 
-    if($INFO['isadmin'])
+    if($INFO['isadmin']) {
 // **End** ACLMOD v1.1 changes
         if($menu['plugin']){
             ptln('  <li class="admin_plugin"><div class="li">'.
